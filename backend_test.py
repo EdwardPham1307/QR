@@ -3,7 +3,11 @@ import requests
 import unittest
 import time
 import json
+import base64
+import re
 from urllib.parse import urlparse
+from io import BytesIO
+from PIL import Image
 
 # Get the backend URL from the frontend .env file
 BACKEND_URL = "https://8f2f7923-a357-4b44-8d8a-478e20f6baf4.preview.emergentagent.com"
