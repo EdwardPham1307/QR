@@ -200,25 +200,12 @@ class URLShortenerTests(unittest.TestCase):
         
         print(f"Initial click count: {initial_clicks}")
         
-        # Simulate multiple clicks by directly calling the backend API
-        # This is a workaround since we can't test the redirect directly
+        # Simulate multiple clicks by directly calling the redirect endpoint
         num_clicks = 3
         for i in range(num_clicks):
-            # Make a request to the backend API to simulate a click
-            # In a real environment, this would be a GET request to /{short_code}
-            # But since we can't test that directly, we'll use the backend API
-            # to increment the click count
-            
-            # First, get the URL record
-            url_record = requests.get(f"{API_URL}/urls").json()
-            for record in url_record:
-                if record["short_code"] == short_code:
-                    # Found the record, now increment the click count
-                    # We'll do this by making a request to the stats endpoint
-                    # which will indirectly tell us if the click count is being updated
-                    stats_response = requests.get(f"{API_URL}/stats/{short_code}")
-                    self.assertEqual(stats_response.status_code, 200)
-                    break
+            # Make a request to the redirect endpoint
+            redirect_response = requests.get(f"{BACKEND_URL}/{short_code}", allow_redirects=False)
+            self.assertEqual(redirect_response.status_code, 302)
         
         # Get updated stats
         response = requests.get(f"{API_URL}/stats/{short_code}")
@@ -227,12 +214,12 @@ class URLShortenerTests(unittest.TestCase):
         
         print(f"Updated stats: {updated_stats}")
         
-        # Since we can't directly test the click counting, we'll just verify
-        # that the stats endpoint is working and returning the expected data
+        # Verify click count increased
+        self.assertEqual(updated_stats["total_clicks"], initial_clicks + num_clicks)
         self.assertEqual(updated_stats["short_code"], short_code)
         self.assertEqual(updated_stats["original_url"], self.valid_url_with_protocol)
         
-        print(f"Successfully verified stats endpoint for short code: {short_code}")
+        print(f"Successfully verified click counting for short code: {short_code}")
 
     def test_08_stats_valid_short_code(self):
         """Test getting stats for a valid short code"""
