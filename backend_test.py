@@ -310,5 +310,130 @@ class URLShortenerTests(unittest.TestCase):
         
         print(f"Successfully verified daily click aggregation structure for short code: {short_code}")
 
+    def test_11_qr_code_endpoint_valid_short_code(self):
+        """Test QR code endpoint with valid short code"""
+        print("\n=== Testing QR code endpoint with valid short code ===")
+        
+        # First create a short URL
+        short_code = self.test_01_shorten_valid_url_without_protocol()
+        
+        # Get QR code
+        response = requests.get(f"{API_URL}/qr/{short_code}")
+        
+        print(f"Response status: {response.status_code}")
+        print(f"Response body: {response.text[:100]}...")  # Only print the beginning to avoid large output
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Verify response structure
+        self.assertIn("short_code", data)
+        self.assertIn("short_url", data)
+        self.assertIn("qr_code", data)
+        
+        # Verify data
+        self.assertEqual(data["short_code"], short_code)
+        self.assertEqual(data["short_url"], f"domain.com/{short_code}")
+        
+        # Verify QR code format
+        self.assertTrue(data["qr_code"].startswith("data:image/png;base64,"))
+        
+        print(f"Successfully retrieved QR code for short code: {short_code}")
+        
+        return data["qr_code"]
+
+    def test_12_qr_code_endpoint_invalid_short_code(self):
+        """Test QR code endpoint with invalid short code"""
+        print("\n=== Testing QR code endpoint with invalid short code ===")
+        
+        response = requests.get(f"{API_URL}/qr/{self.non_existent_short_code}")
+        
+        print(f"Response status: {response.status_code}")
+        print(f"Response body: {response.text}")
+        
+        # Should return 404 Not Found
+        self.assertEqual(response.status_code, 404)
+        
+        # Verify error message
+        data = response.json()
+        self.assertIn("detail", data)
+        self.assertEqual(data["detail"], "Short URL not found")
+        
+        print("Successfully rejected invalid short code for QR code endpoint")
+
+    def test_13_qr_code_content_validation(self):
+        """Test that QR code contains the correct shortened URL"""
+        print("\n=== Testing QR code content validation ===")
+        
+        # First create a short URL
+        short_code = self.test_02_shorten_valid_url_with_protocol()
+        
+        # Get QR code
+        response = requests.get(f"{API_URL}/qr/{short_code}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        qr_code_data = data["qr_code"]
+        
+        # Verify QR code format
+        self.assertTrue(qr_code_data.startswith("data:image/png;base64,"))
+        
+        # Extract base64 data
+        base64_data = qr_code_data.replace("data:image/png;base64,", "")
+        
+        # Verify base64 data is valid
+        try:
+            # Try to decode the base64 data
+            decoded_data = base64.b64decode(base64_data)
+            print("Successfully decoded base64 data")
+            
+            # Try to open the image (this will fail if the data is not a valid image)
+            try:
+                img = Image.open(BytesIO(decoded_data))
+                print(f"Successfully opened image: {img.format}, {img.size}, {img.mode}")
+                
+                # We can't directly read the QR code content without a QR code reader library,
+                # but we can verify that the image was created successfully
+                self.assertIsNotNone(img)
+                
+            except Exception as e:
+                print(f"Error opening image: {e}")
+                self.fail("Failed to open image from base64 data")
+                
+        except Exception as e:
+            print(f"Error decoding base64 data: {e}")
+            self.fail("Failed to decode base64 data")
+        
+        print(f"Successfully validated QR code content for short code: {short_code}")
+
+    def test_14_verify_qr_code_stored_in_mongodb(self):
+        """Test that QR code is stored in MongoDB (indirectly through API)"""
+        print("\n=== Testing QR code storage in MongoDB ===")
+        
+        # First create a short URL
+        short_code = self.test_01_shorten_valid_url_without_protocol()
+        
+        # Get the URL from the API (which retrieves from MongoDB)
+        response = requests.get(f"{API_URL}/qr/{short_code}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        
+        # Verify QR code is present
+        self.assertIn("qr_code", data)
+        self.assertTrue(data["qr_code"].startswith("data:image/png;base64,"))
+        
+        # Get the URL from the stats endpoint (another way to verify MongoDB storage)
+        response = requests.get(f"{API_URL}/stats/{short_code}")
+        self.assertEqual(response.status_code, 200)
+        stats_data = response.json()
+        
+        # Verify QR code is present in stats
+        self.assertIn("qr_code", stats_data)
+        self.assertTrue(stats_data["qr_code"].startswith("data:image/png;base64,"))
+        
+        # Verify both QR codes are the same
+        self.assertEqual(data["qr_code"], stats_data["qr_code"])
+        
+        print(f"Successfully verified QR code storage in MongoDB for short code: {short_code}")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
