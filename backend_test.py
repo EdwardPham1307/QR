@@ -46,6 +46,10 @@ class URLShortenerTests(unittest.TestCase):
         self.assertIn("created_at", data)
         self.assertIn("click_count", data)
         
+        # Verify QR code is included in response
+        self.assertIn("qr_code", data)
+        self.assertTrue(data["qr_code"].startswith("data:image/png;base64,"))
+        
         # Verify URL was normalized with https://
         self.assertEqual(data["original_url"], f"https://{self.valid_url}")
         
