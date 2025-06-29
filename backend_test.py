@@ -79,6 +79,10 @@ class URLShortenerTests(unittest.TestCase):
         # Verify URL was not modified
         self.assertEqual(data["original_url"], self.valid_url_with_protocol)
         
+        # Verify QR code is included in response
+        self.assertIn("qr_code", data)
+        self.assertTrue(data["qr_code"].startswith("data:image/png;base64,"))
+        
         # Save short code for later tests
         self.created_short_codes.append(data["short_code"])
         
