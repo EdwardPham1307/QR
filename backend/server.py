@@ -13,6 +13,9 @@ from datetime import datetime
 import random
 import string
 import validators
+import qrcode
+from io import BytesIO
+import base64
 
 
 ROOT_DIR = Path(__file__).parent
@@ -39,6 +42,7 @@ class UrlResponse(BaseModel):
     original_url: str
     short_code: str
     short_url: str
+    qr_code: str  # Base64 encoded QR code image
     created_at: datetime = Field(default_factory=datetime.utcnow)
     click_count: int = 0
 
@@ -65,6 +69,36 @@ async def get_unique_short_code():
             return code
 
 
+def generate_qr_code(url: str) -> str:
+    """Generate QR code for URL and return as base64 encoded image"""
+    try:
+        # Create QR code instance
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        
+        # Add data and make QR code
+        qr.add_data(url)
+        qr.make(fit=True)
+        
+        # Create image
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Convert to base64
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        img_data = buffer.getvalue()
+        base64_encoded = base64.b64encode(img_data).decode('utf-8')
+        
+        return f"data:image/png;base64,{base64_encoded}"
+    except Exception as e:
+        logger.error(f"Error generating QR code: {e}")
+        return ""
+
+
 @api_router.post("/shorten", response_model=UrlResponse)
 async def create_short_url(url_data: UrlCreate):
     # Validate URL
@@ -80,11 +114,18 @@ async def create_short_url(url_data: UrlCreate):
     # Generate unique short code
     short_code = await get_unique_short_code()
     
+    # Create shortened URL
+    short_url = f"domain.com/{short_code}"  # This will be dynamic in production
+    
+    # Generate QR code for the shortened URL
+    qr_code_data = generate_qr_code(short_url)
+    
     # Create URL object
     url_obj = UrlResponse(
         original_url=original_url,
         short_code=short_code,
-        short_url=f"domain.com/{short_code}"  # This will be dynamic in production
+        short_url=short_url,
+        qr_code=qr_code_data
     )
     
     # Save to database
@@ -98,6 +139,21 @@ async def get_all_urls():
     """Get all shortened URLs - for testing purposes"""
     urls = await db.urls.find().to_list(1000)
     return [UrlResponse(**url) for url in urls]
+
+
+@api_router.get("/qr/{short_code}")
+async def get_qr_code(short_code: str):
+    """Get QR code for a specific short URL"""
+    url_record = await db.urls.find_one({"short_code": short_code})
+    
+    if not url_record:
+        raise HTTPException(status_code=404, detail="Short URL not found")
+    
+    return {
+        "short_code": short_code,
+        "short_url": url_record["short_url"],
+        "qr_code": url_record.get("qr_code", "")
+    }
 
 
 # Redirect endpoint (not under /api prefix)
@@ -148,7 +204,8 @@ async def get_url_stats(short_code: str):
         "original_url": url_record["original_url"],
         "total_clicks": len(clicks),
         "daily_clicks": daily_clicks,
-        "created_at": url_record["created_at"]
+        "created_at": url_record["created_at"],
+        "qr_code": url_record.get("qr_code", "")
     }
 
 
