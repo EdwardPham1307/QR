@@ -133,6 +133,7 @@ class URLShortenerTests(unittest.TestCase):
         
         print(f"Response status: {response.status_code}")
         print(f"Response headers: {response.headers}")
+        print(f"Response content: {response.text[:200]}...")  # Print first 200 chars of response
         
         # Should return 302 Found (redirect)
         self.assertEqual(response.status_code, 302)
