@@ -256,10 +256,14 @@ class URLShortenerTests(unittest.TestCase):
         self.assertIn("total_clicks", data)
         self.assertIn("daily_clicks", data)
         self.assertIn("created_at", data)
+        self.assertIn("qr_code", data)
         
         # Verify data
         self.assertEqual(data["short_code"], short_code)
         self.assertEqual(data["original_url"], f"https://{self.valid_url}")
+        
+        # Verify QR code is included in response
+        self.assertTrue(data["qr_code"].startswith("data:image/png;base64,"))
         
         # Verify daily clicks
         self.assertIsInstance(data["daily_clicks"], dict)
